@@ -184,7 +184,7 @@ const server = app.listen(PORT, () => {
 
 // Створення WebSocket сервера
 const wss
-    = new WebSocket.Server({ server });
+    = new WebSocket.Server({ server,path:'/ws' });
 
 // Слухаємо підключення клієнтів
 wss.on('connection', (ws) => {
