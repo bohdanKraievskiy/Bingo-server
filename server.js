@@ -2,7 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const https = require('https');
+const WebSocket = require('ws');
+
 // Инициализация приложения
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -37,7 +38,6 @@ const taskSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 const Task = mongoose.model('Task', taskSchema);
-const Boost = mongoose.model('Boost', boostSchema);
 
 // Маршрут для проверки пользователя
 app.get('/api/check-user', async (req, res) => {
@@ -178,6 +178,69 @@ app.put('/api/update-league/:telegram_id', async (req, res) => {
 });
 
 // Запуск сервера
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server running on port: ${PORT}`);
+});
+
+// Створення WebSocket сервера
+const wss
+    = new WebSocket.Server({ server });
+
+// Слухаємо підключення клієнтів
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+
+    ws.on('message', async (message) => {
+        const data = JSON.parse(message);
+        console.log('Received message:', data);
+
+        if (data.type === 'requestUserData') {
+            const { telegram_id } = data;
+            try {
+                const user = await User.findOne({ telegram_id });
+                if (user) {
+                    ws.send(JSON.stringify({
+                        type: 'userData',
+                        balance: user.balance,
+                        league: user.league
+                    }));
+                } else {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        message: 'User not found'
+                    }));
+                }
+            } catch (error) {
+                console.error('Error fetching user balance:', error);
+            }
+        } else if (data.type === 'updateBalance') {
+            const { telegram_id, newBalance } = data;
+
+            try {
+                const user = await User.findOne({ telegram_id });
+                if (user) {
+                    user.balance = newBalance;
+                    await user.save();
+
+                    // Відправляємо новий баланс всім підключеним клієнтам
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({
+                                type: 'balanceUpdate',
+                                telegram_id,
+                                newBalance
+                            }));
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating balance:', error);
+            }
+        }
+    });
+
+    // Обробка відключення клієнта
+    ws.on('close', () => {
+        console.log('Client disconnected');
+    });
 });
