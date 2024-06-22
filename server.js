@@ -202,7 +202,10 @@ wss.on('connection', (ws) => {
                     ws.send(JSON.stringify({
                         type: 'userData',
                         balance: user.balance,
-                        league: user.league
+                        league: user.league,
+                        multiTapLevel: user.multi_tap_level,
+                        energyLimitLevel: user.energy_limit_level,
+                        rechargingSpeed: user.recharging_speed
                     }));
                 } else {
                     ws.send(JSON.stringify({
@@ -235,6 +238,53 @@ wss.on('connection', (ws) => {
                 }
             } catch (error) {
                 console.error('Error updating balance:', error);
+            }
+        } else if (data.type === 'purchaseBoost') {
+            const { telegram_id, boostType, price } = data;
+
+            try {
+                const user = await User.findOne({ telegram_id });
+
+                if (!user) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'User not found' }));
+                    return;
+                }
+
+                if (user.balance < price) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Not enough balance' }));
+                    return;
+                }
+
+                // Знімаємо ціну бусту з балансу користувача
+                user.balance -= price;
+
+                // Оновлюємо рівень бусту
+                if (boostType === 'MULTITAP') {
+                    user.multi_tap_level += 1;
+                } else if (boostType === 'Energy Limit') {
+                    user.energy_limit_level += 1;
+                } else if (boostType === 'Recharge Speed') {
+                    user.recharging_speed += 1;
+                }
+
+                await user.save();
+
+                // Відправляємо оновлення всім клієнтам
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'boostUpdate',
+                            telegram_id,
+                            balance: user.balance,
+                            boostType,
+                            newLevel: boostType === 'MULTITAP' ? user.multi_tap_level :
+                                boostType === 'Energy Limit' ? user.energy_limit_level :
+                                    user.recharging_speed
+                        }));
+                    }
+                });
+            } catch (error) {
+                console.error('Error purchasing boost:', error);
             }
         }
     });
