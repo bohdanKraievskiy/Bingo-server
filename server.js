@@ -47,14 +47,18 @@ const Task = mongoose.model('Task', taskSchema);
 const calculateEnergy = (user) => {
     const currentTime = new Date();
     const lastUpdate = new Date(user.lastEnergyUpdate);
-    const timeDifference = (currentTime - lastUpdate) / 1000;
+    const timeDifference = (currentTime.getTime() - lastUpdate.getTime()) / 1000; // Різниця у секундах
 
-    const energyRecovered = Math.floor((timeDifference / 750) * user.recharging_speed);
-    const maxEnergy = 1500 + user.energy_limit_level * 500;
+    const baseRecoveryTime = 750; // Базовий час відновлення у секундах
+    const recoveryTimePerUnit = baseRecoveryTime / user.recharging_speed; // Час відновлення однієї одиниці енергії
+    const energyRecovered = Math.floor((timeDifference / recoveryTimePerUnit) * 1000); // Кількість відновлених одиниць енергії
+    const maxEnergy = 1000 + user.energy_limit_level * 500; // Максимальна енергія
 
-    user.energy = Math.min(user.energy + energyRecovered, maxEnergy);
+    user.energy = Math.min(user.energy + energyRecovered, maxEnergy); // Відновлена енергія
     user.lastEnergyUpdate = currentTime;
 };
+
+
 
 app.get('/api/check-user', async (req, res) => {
     const { telegram_id } = req.query;
@@ -221,7 +225,6 @@ app.put('/api/update-league/:telegram_id', async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-
         res.json(user);
     } catch (error) {
         console.error('Update league error:', error);
@@ -317,6 +320,7 @@ async function handleUpdateBalance(ws, data) {
         if (user) {
             user.balance = newBalance;
             user.energy = newEnergy;
+            user.lastEnergyUpdate = new Date();
             await user.save();
 
             wss.clients.forEach(client => {
