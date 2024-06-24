@@ -45,17 +45,19 @@ const User = mongoose.model('User', userSchema);
 const Task = mongoose.model('Task', taskSchema);
 
 const calculateEnergy = (user) => {
-    const currentTime = new Date();
-    const lastUpdate = new Date(user.lastEnergyUpdate);
-    const timeDifference = (currentTime.getTime() - lastUpdate.getTime()) / 1000; // Різниця у секундах
-
-    const baseRecoveryTime = 750; // Базовий час відновлення у секундах
-    const recoveryTimePerUnit = baseRecoveryTime / user.recharging_speed; // Час відновлення однієї одиниці енергії
-    const energyRecovered = Math.floor((timeDifference / recoveryTimePerUnit) * 1000); // Кількість відновлених одиниць енергії
-    const maxEnergy = 1000 + user.energy_limit_level * 500; // Максимальна енергія
-
-    user.energy = Math.min(user.energy + energyRecovered, maxEnergy); // Відновлена енергія
-    user.lastEnergyUpdate = currentTime;
+    const maxEnergy = 1000 + user.energy_limit_level * 500;
+    if (user.energy < maxEnergy) {
+        const currentTime = new Date();
+        const lastUpdate = new Date(user.lastEnergyUpdate);
+        const timeDifference = (currentTime.getTime() - lastUpdate.getTime()) / 1000; // Різниця у секундах
+        console.log(`currentTime - ${currentTime} - ${lastUpdate}. timeDifference: ${timeDifference}`);
+        const baseRecoveryTime = 750; // Базовий час відновлення у секундах
+        const recoveryTimePerUnit = baseRecoveryTime / user.recharging_speed; // Час відновлення однієї одиниці енергії
+        const energyRecovered = Math.floor((timeDifference / recoveryTimePerUnit) * 1000); // Кількість відновлених одиниць енергії
+        console.log(`Energy calculated: ${energyRecovered}, new energy: ${user.energy}, last update: ${user.lastEnergyUpdate}`);
+        user.energy = Math.min(user.energy + energyRecovered, maxEnergy); // Відновлена енергія
+        user.lastEnergyUpdate = currentTime;
+    }
 };
 
 
