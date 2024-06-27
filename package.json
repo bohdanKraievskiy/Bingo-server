@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,7 @@
     "express": "^4.19.2",
     "https": "^1.0.0",
     "mongoose": "^8.4.1",
+    "nodemon": "^3.1.4",
     "openssl": "^2.0.0",
     "openssl-nodejs": "^1.0.5",
     "reconnecting-websocket": "^4.4.0",
