@@ -41,6 +41,15 @@
             timeLeft: { type: Number, default: 0 }, // Час, що залишився в мілісекундах
             accumulatedPoints: { type: Number, default: 0 }, // Накопичені очки
             lastUpdate: { type: Date, default: Date.now } // Час останнього оновлення
+        },
+        leagueProgress: {
+            WOOD: { type: Number, default: 0 },
+            BRONZE: { type: Number, default: 0 },
+            SILVER: { type: Number, default: 0 },
+            GOLD: { type: Number, default: 0 },
+            DIAMOND: { type: Number, default: 0 },
+            MASTER: { type: Number, default: 0 },
+            GRANDMASTER: { type: Number, default: 0 }
         }
     });
 
@@ -149,10 +158,8 @@
         let newLeague = user.league;
 
         for (const [league, minBalance] of Object.entries(leagueCriteria)) {
-            if (user.balance >= minBalance) {
+            if (user.balance >= minBalance && (leagueCriteria[league] > leagueCriteria[newLeague])) {
                 newLeague = league;
-            } else {
-                break;
             }
         }
 
@@ -179,11 +186,18 @@
                 progress = ((currentBalance) / (balance)) * 100;
                 progress = Math.min(Math.max(progress, 0), 100);
             }
+
+            // Save the new progress if it's greater than the previous one
+            if (progress > user.leagueProgress[league]) {
+                user.leagueProgress[league] = progress;
+            }
+
             progressArray.push({ league, progress });
         }
 
         return progressArray;
     };
+
 
 
     app.get('/api/check-user', async (req, res) => {
@@ -430,8 +444,8 @@
                 updateDailyBoosts(user);
                 updateAutoTapStatus(user);
                 await checkAndUpdateLeague(user);
-                await user.save();
                 const leagueProgress = calculateProgressForAllLeagues(user, leagueCriteria);
+                await user.save();
                 ws.send(JSON.stringify({
                     type: 'userData',
                     balance: user.balance,
@@ -472,7 +486,7 @@
                 user.energy = newEnergy;
                 user.lastEnergyUpdate = new Date();
                 await user.save();
-                console.log(`new balance - ${balanceUpdate}`)
+                console.log(`new balance - ${newBalance}`)
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
