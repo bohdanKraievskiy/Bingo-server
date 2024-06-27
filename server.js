@@ -572,7 +572,6 @@
         await user.save();
         ws.send(JSON.stringify({ energy: user.energy }));
     }
-    // Обробка запитів на активацію буста
     async function handleActivateBoost(ws, data) {
         const { telegram_id, boost } = data;
 
@@ -598,7 +597,6 @@
             ws.send(JSON.stringify({ type: 'error', message: 'Error activating boost' }));
         }
     }
-    // Обробка запитів на активацію буста AUTO TAP
     async function handleActivateAutoTap(ws, data) {
         const { telegram_id } = data;
 
