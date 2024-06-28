@@ -26,7 +26,7 @@
         username: { type: String, required: true },
         telegram_id: { type: Number, unique: true, required: true },
         balance: { type: Number, default: 0 },
-        league: { type: String, default: 'wood' },
+        league: { type: String, default: 'WOOD' },
         multi_tap_level: { type: Number, default: 1 },
         energy_limit_level: { type: Number, default: 1 },
         recharging_speed: { type: Number, default: 1 },
