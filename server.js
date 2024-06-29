@@ -50,7 +50,9 @@
             DIAMOND: { type: Number, default: 0 },
             MASTER: { type: Number, default: 0 },
             GRANDMASTER: { type: Number, default: 0 }
-        }
+        },
+        lastLogin: Date,
+        isOnline: Boolean
     });
 
     const taskSchema = new mongoose.Schema({
@@ -62,6 +64,47 @@
 
     const User = mongoose.model('User', userSchema);
     const Task = mongoose.model('Task', taskSchema);
+    module.exports = User;
+
+    app.use(async (req, res, next) => {
+        if (req.user) {
+            await User.updateOne(
+                { _id: req.user._id },
+                { lastLogin: new Date(), isOnline: true }
+            );
+        }
+        next();
+    });
+
+    const ONLINE_THRESHOLD = 5 * 60 * 1000; // 5 хвилин
+
+    setInterval(async () => {
+        const now = new Date();
+        const offlineThreshold = new Date(now - ONLINE_THRESHOLD);
+
+        await User.updateMany(
+            { lastLogin: { $lt: offlineThreshold }, isOnline: true },
+            { isOnline: false }
+        );
+    }, ONLINE_THRESHOLD);
+
+    app.get('/api/stats', async (req, res) => {
+        try {
+            const totalShareBalance = await User.aggregate([{ $group: { _id: null, total: { $sum: "$balance" } } }]);
+            const totalPlayers = await User.countDocuments({});
+            const dailyPlayers = await User.countDocuments({ lastLogin: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } });
+            const onlinePlayers = await User.countDocuments({ isOnline: true });
+
+            res.json({
+                totalShareBalance: totalShareBalance[0]?.total || 0,
+                totalPlayers,
+                dailyPlayers,
+                onlinePlayers
+            });
+        } catch (error) {
+            res.status(500).send(error.toString());
+        }
+    });
 
     const calculateEnergy = (user) => {
         const maxEnergy = 1000 + user.energy_limit_level * 500;
@@ -353,23 +396,17 @@
 
     app.put('/api/update-league/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
-        const { newLeague } = req.body;
-
-        if (!newLeague) {
-            return res.status(400).json({ message: 'New league is required' });
-        }
 
         try {
-            const user = await User.findOneAndUpdate(
-                { telegram_id: parseInt(telegram_id) },
-                { league: newLeague },
-                { new: true }
-            );
+            const user = await User.findOne({ telegram_id: parseInt(telegram_id) });
 
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
-            res.json(user);
+
+            const updatedUser = await checkAndUpdateLeague(user);
+console.log(updatedUser.league )
+            res.json({ league: updatedUser.league });
         } catch (error) {
             console.error('Update league error:', error);
             res.status(500).json({ message: 'Server error' });
@@ -387,7 +424,6 @@
     wss.on('connection', (ws, req) => {
         const ip = req.socket.remoteAddress; // Отримання IP-адреси клієнта
         console.log(`New connection from IP: ${ip}`);
-
         ws.on('message', async (message) => {
             try {
                 const data = JSON.parse(message);
@@ -428,7 +464,8 @@
             }
         });
 
-        ws.on('close', () => {
+        ws.on('close', async () => {
+            // Оновлюємо статус користувача при відключенні
             console.log(`Client with IP ${ip} disconnected`);
         });
     });
