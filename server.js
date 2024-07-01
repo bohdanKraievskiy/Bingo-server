@@ -350,6 +350,7 @@
         }
     });
 
+
     app.post('/api/purchase-boost', async (req, res) => {
         const { telegram_id, boostType, price } = req.body;
 
@@ -428,7 +429,12 @@ console.log(updatedUser.league )
             try {
                 const data = JSON.parse(message);
                 console.log(`Received message from IP ${ip}:`, data);
-
+                const userId = data.telegram_id;
+                ws.userId = userId;
+                console.log(userId)
+                // Update the user's status to online in the database
+                await User.findOneAndUpdate({telegram_id: userId}, { isOnline: true});
+                await User.findOneAndUpdate({telegram_id: userId}, { lastLogin: new Date() });
                 // Обробка повідомлень від клієнта
                 switch (data.type) {
                     case 'requestUserData':
@@ -465,8 +471,10 @@ console.log(updatedUser.league )
         });
 
         ws.on('close', async () => {
-            // Оновлюємо статус користувача при відключенні
-            console.log(`Client with IP ${ip} disconnected`);
+            console.log(`Connection closed from IP: ${ip}`);
+                // Update the user's status to offline in the database
+                await User.findOneAndUpdate({ telegram_id: ws.userId }, { isOnline: false });
+
         });
     });
 
