@@ -173,7 +173,7 @@
         }
 
         const elapsed = now - user.autoTap.lastUpdate;
-        const pointsPerMinute = 5; // Points per minute
+        const pointsPerMinute = 60; // Points per minute
         const pointsToAdd = Math.floor(elapsed / 60000) * pointsPerMinute; // New points to add
         user.autoTap.accumulatedPoints += pointsToAdd;
 
@@ -350,6 +350,23 @@
         }
     });
 
+        // Add this new route below your other routes
+        app.get('/api/accumulated-points/:telegram_id', async (req, res) => {
+            const { telegram_id } = req.params;
+
+            try {
+                const user = await User.findOne({ telegram_id });
+
+                if (!user) {
+                    return res.status(404).json({ message: 'User not found' });
+                }
+
+                res.json({ accumulatedPoints: user.autoTap.accumulatedPoints });
+            } catch (error) {
+                console.error('Error getting accumulated points:', error);
+                res.status(500).json({ message: 'Server error' });
+            }
+        });
 
     app.post('/api/purchase-boost', async (req, res) => {
         const { telegram_id, boostType, price } = req.body;
@@ -490,6 +507,7 @@ console.log(updatedUser.league )
                 updateAutoTapStatus(user);
                 await checkAndUpdateLeague(user);
                 const leagueProgress = calculateProgressForAllLeagues(user, leagueCriteria);
+                console.log(user.autoTap)
                 await user.save();
                 ws.send(JSON.stringify({
                     type: 'userData',
@@ -581,8 +599,6 @@ console.log(updatedUser.league )
                     user.recharging_speed += 1;
                     break;
                 case 'AUTO TAP':
-                const newbalance=200000;
-                user.balance -= newbalance;
                 await user.save();
                     break;
                 default:
