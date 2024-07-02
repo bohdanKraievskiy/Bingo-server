@@ -4,6 +4,7 @@
     const cors = require('cors');
     const WebSocket = require('ws');
 
+
     const app = express();
     const PORT = process.env.PORT || 8000;
     const MONGO_URI = "mongodb+srv://djenkinsbo6:PXgw5CJ4Rn4zZiUq@bingo-cluster.z0hzwwa.mongodb.net/bingo_db?retryWrites=true&w=majority"; // Використання перемінних оточення
@@ -88,7 +89,7 @@
         );
     }, ONLINE_THRESHOLD);
 
-    app.get('/api/stats', async (req, res) => {
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/stats', async (req, res) => {
         try {
             const totalShareBalance = await User.aggregate([{ $group: { _id: null, total: { $sum: "$balance" } } }]);
             const totalPlayers = await User.countDocuments({});
@@ -124,9 +125,8 @@
 
     const updateDailyBoosts = (user) => {
         const now = new Date();
-
-
-        const eightHours = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+        const eightHours = 8 * 60 * 60 * 1000; // 8 часов в миллисекундах
+        let newChargesAdded = false;
 
         const boosts = ['tapingGuru', 'fullTank'];
         boosts.forEach(boost => {
@@ -134,13 +134,21 @@
             const timeDifference = (now.getTime() - lastUpdate.getTime());
             console.log(`last upd - ${lastUpdate}, time to difference - ${timeDifference}`);
             if (timeDifference >= eightHours) {
-                const chargesToAdd = Math.floor(timeDifference / eightHours);
+                const previousCharges = user.dailyBoosts[boost].charges;
+                const chargesToAdd = 3;
                 user.dailyBoosts[boost].charges = Math.min(user.dailyBoosts[boost].charges + chargesToAdd, 3);
                 console.log(`chargesToAdd - ${chargesToAdd}. last upd - ${lastUpdate}, time to difference - ${timeDifference}`);
                 user.dailyBoosts[boost].lastUpdate = new Date(lastUpdate.getTime() + chargesToAdd * eightHours);
+
+                if (previousCharges < 3 && user.dailyBoosts[boost].charges === 3) {
+                    newChargesAdded = true;
+                }
             }
         });
+
+        return newChargesAdded;
     };
+
 
     const activateAutoTap = (user) => {
         const now = new Date();
@@ -243,7 +251,7 @@
 
 
 
-    app.get('/api/check-user', async (req, res) => {
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/check-user', async (req, res) => {
         const { telegram_id } = req.query;
 
         if (!telegram_id) {
@@ -255,7 +263,8 @@
 
             if (user) {
                 calculateEnergy(user); // Оновлення енергії користувача перед відправкою даних
-                updateDailyBoosts(user);
+                const newChargesAdded = updateDailyBoosts(user);
+                console.log(newChargesAdded);
                 await user.save();
 
                 res.status(200).json({
@@ -263,7 +272,8 @@
                     userBalance: user.balance,
                     userLeague: user.league,
                     userEnergy: user.energy,
-                    dailyBoosts: user.dailyBoosts
+                    dailyBoosts: user.dailyBoosts,
+                    newChargesAdded
                 });
             } else {
                 res.status(200).json({ userExists: false });
@@ -273,7 +283,7 @@
         }
     });
 
-    app.post('/api/create-user', async (req, res) => {
+    app.post('/api/eyJhbGciOiJIUzI1NiJ9/create-user', async (req, res) => {
         const { username, telegram_id } = req.body;
 
         if (!username || !telegram_id) {
@@ -300,7 +310,7 @@
         }
     });
 
-    app.get('/api/user-balance/:telegram_id', async (req, res) => {
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/user-balance/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
 
         try {
@@ -317,7 +327,7 @@
         }
     });
 
-    app.put('/api/save-balance/:telegram_id', async (req, res) => {
+    app.put('/api/eyJhbGciOiJIUzI1NiJ9/save-balance/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
         const { balance } = req.body;
 
@@ -340,7 +350,7 @@
         }
     });
 
-    app.get('/api/tasks', async (req, res) => {
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/tasks', async (req, res) => {
         try {
             const tasks = await Task.find();
             res.json(tasks);
@@ -351,7 +361,7 @@
     });
 
         // Add this new route below your other routes
-        app.get('/api/accumulated-points/:telegram_id', async (req, res) => {
+        app.get('/api/eyJhbGciOiJIUzI1NiJ9/accumulated-points/:telegram_id', async (req, res) => {
             const { telegram_id } = req.params;
 
             try {
@@ -368,7 +378,7 @@
             }
         });
 
-    app.post('/api/purchase-boost', async (req, res) => {
+    app.post('/api/eyJhbGciOiJIUzI1NiJ9/purchase-boost', async (req, res) => {
         const { telegram_id, boostType, price } = req.body;
 
         if (price === undefined || price < 0) {
@@ -412,7 +422,7 @@
         }
     });
 
-    app.put('/api/update-league/:telegram_id', async (req, res) => {
+    app.put('/api/eyJhbGciOiJIUzI1NiJ9/update-league/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
 
         try {
@@ -437,7 +447,7 @@ console.log(updatedUser.league )
     });
 
     // Підключення WebSocket сервера
-    const wss = new WebSocket.Server({ server, path: '/ws' });
+    const wss = new WebSocket.Server({ server, path: '/ws/eyJSb2xlIjoiQWRtaW4iLCJJc3N1ZXI' });
 
     wss.on('connection', (ws, req) => {
         const ip = req.socket.remoteAddress; // Отримання IP-адреси клієнта
@@ -503,7 +513,7 @@ console.log(updatedUser.league )
             const user = await User.findOne({ telegram_id });
             if (user) {
                 calculateEnergy(user); // Обновление энергии пользователя перед отправкой данных
-                updateDailyBoosts(user);
+                const { newChargesAdded } = updateDailyBoosts(user);
                 updateAutoTapStatus(user);
                 await checkAndUpdateLeague(user);
                 const leagueProgress = calculateProgressForAllLeagues(user, leagueCriteria);
@@ -519,7 +529,8 @@ console.log(updatedUser.league )
                     energy: user.energy, // Добавление энергии в ответ
                     dailyBoosts: user.dailyBoosts,
                     autoTap: user.autoTap,
-                    leagueProgress:leagueProgress
+                    leagueProgress:leagueProgress,
+                    newChargesAdded
                 }));
             } else {
                 ws.send(JSON.stringify({
