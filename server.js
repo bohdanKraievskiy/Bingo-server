@@ -27,6 +27,8 @@
         username: { type: String, required: true },
         telegram_id: { type: Number, unique: true, required: true },
         balance: { type: Number, default: 0 },
+        ref_balance: { type: Number, default: 0 },
+        referral_count: { type: Number, default: 0 },
         league: { type: String, default: 'WOOD' },
         multi_tap_level: { type: Number, default: 1 },
         energy_limit_level: { type: Number, default: 1 },
@@ -438,6 +440,104 @@ console.log(updatedUser.league )
         } catch (error) {
             console.error('Update league error:', error);
             res.status(500).json({ message: 'Server error' });
+        }
+    });
+
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/user-referral_count/:telegram_id', async (req, res) => {
+        const { telegram_id } = req.params;
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            res.json({ referral_count: user.referral_count });
+        } catch (error) {
+            console.error('Error getting user referral_count:', error);
+            res.status(500).json({ message: "Server error" });
+        }
+    });
+
+    app.put('/api/eyJhbGciOiJIUzI1NiJ9/save-referral_count/:telegram_id', async (req, res) => {
+        const { telegram_id } = req.params;
+        const { referral_count } = req.body;
+
+        if (referral_count === undefined || referral_count < 0) {
+            return res.status(400).json({ message: 'Valid balance is required' });
+        }
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                user.referral_count = referral_count;
+                await user.save();
+                res.status(200).json({ message: 'referral_count updated successfully' });
+            } else {
+                res.status(404).json({ message: 'User not found' });
+            }
+        } catch (error) {
+            res.status(500).json({ message: 'Error updating referral_count', error });
+        }
+    });
+    
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/user-ref_balance/:telegram_id', async (req, res) => {
+        const { telegram_id } = req.params;
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            res.json({ ref_balance: user.ref_balance });
+        } catch (error) {
+            console.error('Error getting user ref_balance:', error);
+            res.status(500).json({ message: "Server error" });
+        }
+    });
+
+    app.put('/api/eyJhbGciOiJIUzI1NiJ9/save-ref_balance/:telegram_id', async (req, res) => {
+        const { telegram_id } = req.params;
+        const { ref_balance } = req.body;
+
+        if (ref_balance === undefined || ref_balance < 0) {
+            return res.status(400).json({ message: 'Valid balance is required' });
+        }
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                user.ref_balance = ref_balance;
+                await user.save();
+                res.status(200).json({ message: 'ref_balance updated successfully' });
+            } else {
+                res.status(404).json({ message: 'User not found' });
+            }
+        } catch (error) {
+            res.status(500).json({ message: 'Error updating ref_balance', error });
+        }
+    });
+
+    app.get('/api/eyJhbGciOiJIUzI1NiJ9/user-exist/:telegram_id', async (req, res) => {
+        const { telegram_id } = req.params;
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            res.json({ telegram_id: user.telegram_id });
+
+        } catch (error) {
+            console.error('Error getting user', error);
+            res.status(500).json({ message: "Server error" });
         }
     });
 
