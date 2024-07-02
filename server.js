@@ -29,6 +29,7 @@
         balance: { type: Number, default: 0 },
         ref_balance: { type: Number, default: 0 },
         referral_count: { type: Number, default: 0 },
+        referrals: [{ type: Schema.Types.ObjectId, ref: 'User' }],
         league: { type: String, default: 'WOOD' },
         multi_tap_level: { type: Number, default: 1 },
         energy_limit_level: { type: Number, default: 1 },
