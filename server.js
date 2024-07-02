@@ -29,13 +29,13 @@
         balance: { type: Number, default: 0 },
         ref_balance: { type: Number, default: 0 },
         referral_count: { type: Number, default: 0 },
-        referrals: [{ type: Schema.Types.ObjectId, ref: 'User' }],
         league: { type: String, default: 'WOOD' },
         multi_tap_level: { type: Number, default: 1 },
         energy_limit_level: { type: Number, default: 1 },
         recharging_speed: { type: Number, default: 1 },
         energy: { type: Number, default: 1500 },
         lastEnergyUpdate: { type: Date, default: Date.now },
+        referrals: { type: [Number], required: true },
         dailyBoosts: {
             tapingGuru: { charges: { type: Number, default: 3 }, lastUpdate: { type: Date, default: Date.now } },
             fullTank: { charges: { type: Number, default: 3 }, lastUpdate: { type: Date, default: Date.now } }
