@@ -35,6 +35,7 @@
         recharging_speed: { type: Number, default: 1 },
         energy: { type: Number, default: 1500 },
         lastEnergyUpdate: { type: Date, default: Date.now },
+        referrals: { type: [Number], required: true },
         dailyBoosts: {
             tapingGuru: { charges: { type: Number, default: 3 }, lastUpdate: { type: Date, default: Date.now } },
             fullTank: { charges: { type: Number, default: 3 }, lastUpdate: { type: Date, default: Date.now } }
