@@ -366,23 +366,20 @@ app.get(`/api/${TOKEN}/tasks`, async (req, res) => {
     }
 });
 
-    // Add this new route below your other routes
-    app.get(`/api/${TOKEN}/accumulated-points/:telegram_id`, async (req, res) => {
+    app.put('/api/:token/reset-accumulated-points/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
 
-            try {
-                const user = await User.findOne({ telegram_id });
+        try {
+            await User.updateOne({ telegram_id }, {
+                'autoTap.accumulatedPoints': 0 // обнулення накопичених поінтів
+            });
 
-                if (!user) {
-                    return res.status(404).json({ message: 'User not found' });
-                }
+            res.status(200).send({ message: 'Accumulated points reset successfully' });
+        } catch (error) {
+            res.status(500).send({ error: 'Error resetting accumulated points' });
+        }
+    });
 
-                res.json({ accumulatedPoints: user.autoTap.accumulatedPoints });
-            } catch (error) {
-                console.error('Error getting accumulated points:', error);
-                res.status(500).json({ message: 'Server error' });
-            }
-        });
 
 app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
     const { telegram_id, boostType, price } = req.body;
@@ -600,13 +597,14 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
 
     wss.on('connection', (ws, req) => {
         const ip = req.socket.remoteAddress; // Отримання IP-адреси клієнта
+
         logger.info('New connection', { ip, path: req.url });
         ws.on('message', async (message) => {
             try {
-                const data = JSON.parse(message);
-                logger.info('Message received', { ip, telegram_id: data.userId, data });
+                const data = JSON.parse(message);;
                 const userId = data.telegram_id;
                 ws.userId = userId;
+                logger.info('Message received', { ip, telegram_id: ws.userId, data })
                 // Update the user's status to online in the database
                 await User.findOneAndUpdate({telegram_id: userId}, { isOnline: true});
                 await User.findOneAndUpdate({telegram_id: userId}, { lastLogin: new Date() });
