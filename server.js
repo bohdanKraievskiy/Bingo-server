@@ -258,7 +258,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
 
 
-    app.get('/api/eyJhbGciOiJIUzI1NiJ9/check-user', async (req, res) => {
+    app.get(`/api/${TOKEN}/check-user`, async (req, res) => {
         const { telegram_id } = req.query;
 
         if (!telegram_id) {
@@ -269,13 +269,14 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
-                calculateEnergy(user); // Оновлення енергії користувача перед відправкою даних
+                calculateEnergy(user);
                 const newChargesAdded = updateDailyBoosts(user);
                 await user.save();
 
                 res.status(200).json({
                     userExists: true,
                     userBalance: user.balance,
+                    username: user.username,
                     userLeague: user.league,
                     userEnergy: user.energy,
                     dailyBoosts: user.dailyBoosts,
