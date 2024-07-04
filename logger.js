@@ -10,8 +10,15 @@ const logger = winston.createLogger({
         })
     ),
     transports: [
-        new transports.Console(),
-        new transports.File({ filename: 'combined.log' })
+        new transports.Console({  // Виводимо логи в консоль
+            format: format.combine(
+                format.colorize(),  // Додаємо кольори для кращого сприйняття
+                format.printf(({ timestamp, level, message, meta }) => {
+                    return `${timestamp} [${level}] telegram_id: ${meta?.telegram_id || 'unknown'} - ${message}`;
+                })
+            )
+        }),
+        new transports.File({ filename: 'combined.log' })  // Зберігаємо логи в файл
     ]
 });
 

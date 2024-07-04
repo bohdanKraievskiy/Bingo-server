@@ -384,7 +384,7 @@ app.get(`/api/${TOKEN}/tasks`, async (req, res) => {
 
 app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
     const { telegram_id, boostType, price } = req.body;
-
+        console.log(telegram_id,boostType,price)
         if (price === undefined || price < 0) {
             return res.status(400).json({ message: 'Valid price is required' });
         }
@@ -406,10 +406,10 @@ app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
                 case 'MULTITAP':
                     user.multi_tap_level += 1;
                     break;
-                case 'RECHARGE SPEED':
+                case 'ENERGY LIMIT':
                     user.energy_limit_level += 1;
                     break;
-                case 'Recharge Speed':
+                case 'RECHARGE SPEED':
                     user.recharging_speed += 1;
                     break;
                 case 'AUTO TAP':
@@ -737,22 +737,21 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             if (!user) {
                 return ws.send(JSON.stringify({ type: 'error', message: 'User not found' }));
             }
-
-            if (user.balance < price) {
-                return ws.send(JSON.stringify({ type: 'error', message: 'Not enough balance' }));
-            }
-
-            user.balance -= price;
+            const newBalance =  user.balance - price;
+            user.balance = newBalance;
 
             switch (boostType) {
                 case 'MULTITAP':
                     user.multi_tap_level += 1;
+                    user.balance -= price;
                     break;
                 case 'ENERGY LIMIT':
                     user.energy_limit_level += 1;
+                    user.balance -= price;
                     break;
                 case 'RECHARGE SPEED':
                     user.recharging_speed += 1;
+                    user.balance -= price;
                     break;
                 case 'AUTO TAP':
                 await user.save();
@@ -763,19 +762,16 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             logger.info('Boost purchased', { telegram_id, boostType, price, newBalance: user.balance });
             await user.save();
 
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({
+                    ws.send(JSON.stringify({
                         type: 'boostUpdate',
                         telegram_id,
-                        balance: user.balance,
+                        userBalance: user.balance,
                         boostLevels: {
                             multiTapLevel: user.multi_tap_level,
                             energyLimitLevel: user.energy_limit_level,
                             rechargingSpeed: user.recharging_speed,
                         }}));
-                }
-            });
+
         } catch (error) {
             logger.error('Error purchasing boost', { telegram_id, error });
             ws.send(JSON.stringify({ type: 'error', message: 'Error purchasing boost' }));
