@@ -245,13 +245,12 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
                 progress = ((currentBalance) / (balance)) * 100;
                 progress = Math.min(Math.max(progress, 0), 100);
             }
-
+            console.log(progress)
             // Save the new progress if it's greater than the previous one
-            if (progress > user.leagueProgress[league]) {
+            if (progress > (user.leagueProgress[league] || 0)) {
                 user.leagueProgress[league] = progress;
             }
-
-            progressArray.push({ league, progress });
+            progressArray.push({ league, progress: user.leagueProgress[league] });
         }
 
         return progressArray;
