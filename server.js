@@ -26,7 +26,9 @@
     const userSchema = new mongoose.Schema({
         username: { type: String, required: true },
         telegram_id: { type: Number, unique: true, required: true },
-        balance: { type: Number, default: 0 },
+        taping_balance: { type: Number, default: 0 },
+        bonus_balance: { type: Number, default: 0 },
+        total_balance: { type: Number, default: 0 },
         ref_balance: { type: Number, default: 0 },
         referral_count: { type: Number, default: 0 },
         league: { type: String, default: 'WOOD' },
@@ -94,7 +96,7 @@ setInterval(async () => {
 
 app.get(`/api/${TOKEN}/stats`, async (req, res) => {
     try {
-        const totalShareBalance = await User.aggregate([{ $group: { _id: null, total: { $sum: "$balance" } } }]);
+        const totalShareBalance   = await User.aggregate([{ $group: { _id: null, total: { $sum: "$total_balance" } } }]);
         const totalPlayers = await User.countDocuments({});
         const dailyPlayers = await User.countDocuments({ lastLogin: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } });
         const onlinePlayers = await User.countDocuments({ isOnline: true });
@@ -205,19 +207,19 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
     const leagueCriteria = {
         WOOD: 0,
-        BRONZE: 1000,
-        SILVER: 50000,
-        GOLD: 250000,
-        DIAMOND: 500000,
-        MASTER: 750000,
-        GRANDMASTER:1000000
+        BRONZE: 1000000,
+        SILVER: 5000000,
+        GOLD: 15000000,
+        DIAMOND: 25000000,
+        MASTER: 45000000,
+        GRANDMASTER: 70000000
     };
 
     const checkAndUpdateLeague = async (user) => {
         let newLeague = user.league;
 
         for (const [league, minBalance] of Object.entries(leagueCriteria)) {
-            if (user.balance >= minBalance && (leagueCriteria[league] > leagueCriteria[newLeague])) {
+            if (user.taping_balance >= minBalance && (leagueCriteria[league] > leagueCriteria[newLeague])) {
                 newLeague = league;
             }
         }
@@ -231,7 +233,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
     };
 
     const calculateProgressForAllLeagues = (user, criteria) => {
-        const currentBalance = user.balance;
+        const currentBalance = user.taping_balance;
         const criteriaEntries = Object.entries(criteria).sort(([, a], [, b]) => a - b);
         const totalLeagues = criteriaEntries.length;
         const progressArray = [];
@@ -275,7 +277,9 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
                 res.status(200).json({
                     userExists: true,
-                    userBalance: user.balance,
+                    userTapingBalance: user.taping_balance,
+                    userBonusBalance: user.bonus_balance,
+                    userTotalBalance: user.total_balance,
                     username: user.username,
                     userLeague: user.league,
                     userEnergy: user.energy,
@@ -304,7 +308,6 @@ app.post(`/api/${TOKEN}/create-user`, async (req, res) => {
                 const user = new User({
                     username,
                     telegram_id,
-                    balance: 0
                 });
 
                 await user.save();
@@ -327,18 +330,18 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
                 return res.status(404).json({ message: "User not found" });
             }
 
-            res.json({ balance: user.balance });
+            res.json({ balance: user.bonus_balance });
         } catch (error) {
             console.error('Error getting user balance:', error);
             res.status(500).json({ message: "Server error" });
         }
     });
 
-app.put(`/api/${TOKEN}/save-balance/:telegram_id`, async (req, res) => {
+app.put(`/api/${TOKEN}/save-tapingBalance/:telegram_id`, async (req, res) => {
     const { telegram_id } = req.params;
-    const { balance } = req.body;
+    const { taping_balance } = req.body;
 
-        if (balance === undefined || balance < 0) {
+        if (taping_balance === undefined || taping_balance < 0) {
             return res.status(400).json({ message: 'Valid balance is required' });
         }
 
@@ -346,26 +349,40 @@ app.put(`/api/${TOKEN}/save-balance/:telegram_id`, async (req, res) => {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
-                user.balance = balance;
+                user.taping_balance = taping_balance;
+                user.total_balance += user.taping_balance;
                 await user.save();
-                res.status(200).json({ message: 'Balance updated successfully' });
+                res.status(200).json({ message: 'taping_balance updated successfully' });
             } else {
                 res.status(404).json({ message: 'User not found' });
             }
         } catch (error) {
-            res.status(500).json({ message: 'Error updating balance', error });
+            res.status(500).json({ message: 'Error updating taping_balance', error });
         }
     });
+    app.put(`/api/${TOKEN}/save-bonusBalance/:telegram_id`, async (req, res) => {
+        const { telegram_id } = req.params;
+        const { bonus_balance } = req.body;
 
-app.get(`/api/${TOKEN}/tasks`, async (req, res) => {
-    try {
-        const tasks = await Task.find();
-        res.json(tasks);
-    } catch (error) {
-        console.error('Ошибка при получении заданий:', error);
-        res.status(500).json({ message: "Server error" });
-    }
-});
+        if (bonus_balance === undefined || bonus_balance < 0) {
+            return res.status(400).json({ message: 'Valid bonus_balance is required' });
+        }
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                user.bonus_balance = bonus_balance;
+                user.total_balance += user.bonus_balance;
+                await user.save();
+                res.status(200).json({ message: 'Bonus bonus_balance updated successfully' });
+            } else {
+                res.status(404).json({ message: 'User not found' });
+            }
+        } catch (error) {
+            res.status(500).json({ message: 'Error updating bonus_balance', error });
+        }
+    });
 
     app.put('/api/:token/reset-accumulated-points/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
@@ -395,12 +412,12 @@ app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
-
-            if (user.balance < price) {
+            user.total_balance = user.taping_balance + user.bonus_balance;
+            if (user.total_balance < price) {
                 return res.status(400).json({ message: 'Not enough balance' });
             }
 
-            user.balance -= price;
+            user.total_balance -= price;
 
             switch (boostType) {
                 case 'MULTITAP':
@@ -419,7 +436,7 @@ app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
             }
 
             await user.save();
-            res.json({ success: true, newBalance: user.balance });
+            res.json({ success: true, newBalance: user.total_balance });
         } catch (error) {
             console.error('Purchase boost error:', error);
             res.status(500).json({ message: "Server error" });
@@ -666,7 +683,9 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                 await user.save();
                 ws.send(JSON.stringify({
                     type: 'userData',
-                    balance: user.balance,
+                    userTapingbalance: user.taping_balance,
+                    userBonusBalance: user.bonus_balance,
+                    userTotalBalance: user.total_balance,
                     league: user.league,
                     multiTapLevel: user.multi_tap_level,
                     energyLimitLevel: user.energy_limit_level,
@@ -701,7 +720,8 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
-                user.balance = newBalance;
+                user.taping_balance = newBalance;
+                user.total_balance += user.taping_balance;
                 user.energy = newEnergy;
                 user.lastEnergyUpdate = new Date();
                 await user.save();
@@ -717,6 +737,7 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                     }
                 });
             }
+
         } catch (error) {
             logger.error('Error updating balance', { telegram_id, error });
             ws.send(JSON.stringify({ type: 'error', message: 'Error updating balance' }));
@@ -737,8 +758,8 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             if (!user) {
                 return ws.send(JSON.stringify({ type: 'error', message: 'User not found' }));
             }
-            const newBalance =  user.balance - price;
-            user.balance = newBalance;
+            const newBalance =  user.bonus_balance - price;
+            user.bonus_balance = newBalance;
 
             switch (boostType) {
                 case 'MULTITAP':
