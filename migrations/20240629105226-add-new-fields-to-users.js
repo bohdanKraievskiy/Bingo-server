@@ -9,7 +9,7 @@ async function migrate() {
       useUnifiedTopology: true,
     });
 
-    console.log('Подключение к базе данных установлено.');
+    console.log('Starting migration...'); // Лог перед началом миграции
 
     // Обновление всех существующих документов пользователей
     await User.updateMany(
@@ -22,13 +22,13 @@ async function migrate() {
         }
     );
 
-    console.log('Миграция завершена.');
+    console.log('Migration completed.');
   } catch (error) {
-    console.error('Ошибка миграции:', error);
+    console.error('Migration error:', error);
   } finally {
     // Закрытие соединения с базой данных
     await mongoose.disconnect();
-    console.log('Соединение с базой данных закрыто.');
+    console.log('Disconnected from MongoDB.');
   }
 }
 

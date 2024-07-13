@@ -27,7 +27,6 @@
         username: { type: String, required: true },
         telegram_id: { type: Number, unique: true, required: true },
         taping_balance: { type: Number, default: 0 },
-        bonus_balance: { type: Number, default: 0 },
         total_balance: { type: Number, default: 0 },
         ref_balance: { type: Number, default: 0 },
         referral_count: { type: Number, default: 0 },
@@ -278,7 +277,6 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
                 res.status(200).json({
                     userExists: true,
                     userTapingBalance: user.taping_balance,
-                    userBonusBalance: user.bonus_balance,
                     userTotalBalance: user.total_balance,
                     username: user.username,
                     userLeague: user.league,
@@ -330,59 +328,70 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
                 return res.status(404).json({ message: "User not found" });
             }
 
-            res.json({ balance: user.bonus_balance });
+            res.json({ balance: user.total_balance });
         } catch (error) {
             console.error('Error getting user balance:', error);
             res.status(500).json({ message: "Server error" });
         }
     });
-
-app.put(`/api/${TOKEN}/save-tapingBalance/:telegram_id`, async (req, res) => {
-    const { telegram_id } = req.params;
-    const { taping_balance } = req.body;
-
-        if (taping_balance === undefined || taping_balance < 0) {
-            return res.status(400).json({ message: 'Valid balance is required' });
-        }
-
-        try {
-            const user = await User.findOne({ telegram_id });
-
-            if (user) {
-                user.taping_balance = taping_balance;
-                user.total_balance += user.taping_balance;
-                await user.save();
-                res.status(200).json({ message: 'taping_balance updated successfully' });
-            } else {
-                res.status(404).json({ message: 'User not found' });
-            }
-        } catch (error) {
-            res.status(500).json({ message: 'Error updating taping_balance', error });
-        }
-    });
-    app.put(`/api/${TOKEN}/save-bonusBalance/:telegram_id`, async (req, res) => {
+    app.put(`/api/${TOKEN}/save-totalBalance/:telegram_id`, async (req, res) => {
         const { telegram_id } = req.params;
-        const { bonus_balance } = req.body;
+        const { total_balance } = req.body;
 
-        if (bonus_balance === undefined || bonus_balance < 0) {
-            return res.status(400).json({ message: 'Valid bonus_balance is required' });
+        if (total_balance === undefined || total_balance < 0) {
+            return res.status(400).json({ message: 'Valid total balance is required' });
         }
 
         try {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
-                user.bonus_balance = bonus_balance;
-                user.total_balance += user.bonus_balance;
+                // Оновлюємо загальний баланс
+                user.total_balance = total_balance;
+                // Зберігаємо зміни
                 await user.save();
-                res.status(200).json({ message: 'Bonus bonus_balance updated successfully' });
+
+                res.status(200).json({ message: 'Загальний баланс успішно оновлено' });
             } else {
-                res.status(404).json({ message: 'User not found' });
+                res.status(404).json({ message: 'Користувача не знайдено' });
             }
         } catch (error) {
-            res.status(500).json({ message: 'Error updating bonus_balance', error });
+            res.status(500).json({ message: 'Помилка при оновленні загального балансу', error });
         }
     });
+
+    app.put(`/api/${TOKEN}/save-tapingBalance/:telegram_id`, async (req, res) => {
+        const { telegram_id } = req.params;
+        const taping_balance = parseInt(req.body.taping_balance, 10);
+
+        if (isNaN(taping_balance) || taping_balance < 0) {
+            return res.status(400).json({ message: 'Valid taping balance is required' });
+        }
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                // Оновлюємо загальний баланс на основі нового натапаного балансу
+                const difference = taping_balance - user.taping_balance;
+
+                // Оновлюємо загальний баланс на основі різниці
+                user.total_balance += difference;
+
+                // Оновлюємо taping balance
+                user.taping_balance = taping_balance;
+                await user.save();
+
+                res.status(200).json({ message: 'taping_balance updated successfully (api)' });
+            } else {
+                res.status(404).json({ message: 'User not found (api)' });
+            }
+        } catch (error) {
+            res.status(500).json({ message: 'Error updating taping_balance (api)', error });
+        }
+    });
+
+
 
     app.put('/api/:token/reset-accumulated-points/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
@@ -412,7 +421,7 @@ app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
-            user.total_balance = user.taping_balance + user.bonus_balance;
+
             if (user.total_balance < price) {
                 return res.status(400).json({ message: 'Not enough balance' });
             }
@@ -681,10 +690,11 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                 await checkAndUpdateLeague(user);
                 const leagueProgress = calculateProgressForAllLeagues(user, leagueCriteria);
                 await user.save();
+                console.log(user.taping_balance);
+                console.log(user.total_balance);
                 ws.send(JSON.stringify({
                     type: 'userData',
-                    userTapingbalance: user.taping_balance,
-                    userBonusBalance: user.bonus_balance,
+                    userTapingBalance: user.taping_balance,
                     userTotalBalance: user.total_balance,
                     league: user.league,
                     multiTapLevel: user.multi_tap_level,
@@ -720,8 +730,9 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
-                user.taping_balance = newBalance;
-                user.total_balance += user.taping_balance;
+                // Оновлюємо натапаний баланс
+                user.total_balance = newBalance;
+                // Оновлюємо енергію
                 user.energy = newEnergy;
                 user.lastEnergyUpdate = new Date();
                 await user.save();
@@ -758,35 +769,36 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             if (!user) {
                 return ws.send(JSON.stringify({ type: 'error', message: 'User not found' }));
             }
-            const newBalance =  user.bonus_balance - price;
-            user.bonus_balance = newBalance;
+            const newBalance =  user.total_balance - price;
+            user.total_balance = newBalance;
 
             switch (boostType) {
                 case 'MULTITAP':
                     user.multi_tap_level += 1;
-                    user.balance -= price;
+                    user.total_balance -= price;
                     break;
                 case 'ENERGY LIMIT':
                     user.energy_limit_level += 1;
-                    user.balance -= price;
+                    user.total_balance -= price;
                     break;
                 case 'RECHARGE SPEED':
                     user.recharging_speed += 1;
-                    user.balance -= price;
+                    user.total_balance -= price;
                     break;
                 case 'AUTO TAP':
+                    user.total_balance -= price;
                 await user.save();
                     break;
                 default:
                     return ws.send(JSON.stringify({ type: 'error', message: 'Unknown boost type' }));
             }
-            logger.info('Boost purchased', { telegram_id, boostType, price, newBalance: user.balance });
+            logger.info('Boost purchased', { telegram_id, boostType, price, newBalance: user.total_balance });
             await user.save();
 
                     ws.send(JSON.stringify({
                         type: 'boostUpdate',
                         telegram_id,
-                        userBalance: user.balance,
+                        userTotalBalance: user.total_balance,
                         boostLevels: {
                             multiTapLevel: user.multi_tap_level,
                             energyLimitLevel: user.energy_limit_level,
@@ -849,8 +861,8 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
         try {
             const user = await User.findOne({ telegram_id });
 
-            if (user && user.balance >= 100) {
-                user.balance -= 100;
+            if (user && user.total_balance >= 100) {
+                user.total_balance -= 100;
                 activateAutoTap(user); // Функція активації AUTO TAP, яку ви вже маєте
                 await user.save();
                 logger.info('AUTO TAP Boost activated', { telegram_id});
@@ -859,7 +871,7 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                     type: 'autoTapActivated',
                     telegram_id,
                     autoTap: user.autoTap,
-                    newBalance: user.balance  // Додайте новий баланс до відповіді
+                    newBalance: user.total_balance  // Додайте новий баланс до відповіді
                 }));
             } else {
                 ws.send(JSON.stringify({ type: 'error', message: 'Insufficient balance or user not found' }));
@@ -878,15 +890,15 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
 
             if (user && user.autoTap.accumulatedPoints > 0) {
                 const pointsToAdd = user.autoTap.accumulatedPoints;
-                user.balance += pointsToAdd;
+                user.total_balance += pointsToAdd;
                 user.autoTap.accumulatedPoints = 0;
                 await user.save();
-                logger.info('Points claimed activated', { telegram_id ,balance: user.balance});
+                logger.info('Points claimed activated', { telegram_id ,balance: user.total_balance});
                 ws.send(JSON.stringify({
                     type: 'pointsClaimed',
                     telegram_id,
                     pointsClaimed: pointsToAdd,
-                    newBalance: user.balance  // Додайте новий баланс до відповіді
+                    newBalance: user.total_balance  // Додайте новий баланс до відповіді
                 }));
             } else {
                 ws.send(JSON.stringify({ type: 'error', message: 'No points to claim or user not found' }));
