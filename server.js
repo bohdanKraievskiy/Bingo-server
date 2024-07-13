@@ -4,6 +4,7 @@
     const cors = require('cors');
     const WebSocket = require('ws');
     const logger = require('./logger');
+    const req = require("express/lib/request");
 
     const app = express();
     const PORT = process.env.PORT || 8000;
@@ -113,6 +114,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
     const calculateEnergy = (user) => {
         const maxEnergy = 1000 + user.energy_limit_level * 500;
+        console.log(user.energy)
         if (user.energy < maxEnergy) {
             const currentTime = new Date();
             const lastUpdate = new Date(user.lastEnergyUpdate);
@@ -124,6 +126,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
             const energyRecovered = Math.floor((timeDifference / recoveryTimePerUnit) * 1000); // Кількість відновлених одиниць енергії
 
             user.energy = Math.min(user.energy + energyRecovered, maxEnergy); // Відновлена енергія
+            console.log(user.energy)
             user.lastEnergyUpdate = currentTime;
             // Логування після оновлення енергії
             logger.info('Energy updated', {
@@ -246,7 +249,6 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
                 progress = ((currentBalance) / (balance)) * 100;
                 progress = Math.min(Math.max(progress, 0), 100);
             }
-            console.log(progress)
             // Save the new progress if it's greater than the previous one
             if (progress > (user.leagueProgress[league] || 0)) {
                 user.leagueProgress[league] = progress;
@@ -333,6 +335,26 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
             console.error('Error getting user balance:', error);
             res.status(500).json({ message: "Server error" });
         }
+    });
+    app.put(`/api/${TOKEN}/save-energy/:telegram_id`, async(req,res)=>{
+        const { telegram_id } = req.params;
+        const {newEnergy}= req.body;
+
+        if(newEnergy === null || newEnergy===undefined)
+            return res.status(400).json({message: 'Newenergy is required'});
+
+        try{
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                // Оновлюємо енергію
+                user.energy = newEnergy;
+                console.log(user.energy)
+                await user.save();
+            }
+            }   catch (error)   {
+            res.status(500).json({ message: 'Помилка при оновленні енергії користувача', error });
+        };
     });
     app.put(`/api/${TOKEN}/save-totalBalance/:telegram_id`, async (req, res) => {
         const { telegram_id } = req.params;
@@ -515,6 +537,45 @@ app.get(`/api/${TOKEN}/user-referral_count/:telegram_id`, async (req, res) => {
         }
     });
 
+    // API эндпоинт для обновления баланса
+    app.post(`/api/${TOKEN}/updateBalance`, async (req, res) => {
+        const { telegram_id, newBalance, newEnergy } = req.body;
+
+        if (newBalance === undefined || newBalance < 0 || newEnergy === undefined || newEnergy < 0) {
+            return res.status(400).json({ type: 'error', message: 'Valid balance and energy are required' });
+        }
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (user) {
+                user.total_balance = newBalance;
+                user.energy = newEnergy;
+                user.lastEnergyUpdate = new Date();
+                await user.save();
+
+                logger.info('Balance updated', { telegram_id, newBalance, newEnergy });
+
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'balanceUpdate',
+                            telegram_id,
+                            newBalance,
+                            newEnergy
+                        }));
+                    }
+                });
+
+                return res.status(200).json({ type: 'success', message: 'Balance updated' });
+            } else {
+                return res.status(404).json({ type: 'error', message: 'User not found' });
+            }
+        } catch (error) {
+            logger.error('Error updating balance', { telegram_id, error });
+            return res.status(500).json({ type: 'error', message: 'Error updating balance' });
+        }
+    });
 app.put(`/api/${TOKEN}/save-referral_count/:telegram_id`, async (req, res) => {
     const { telegram_id } = req.params;
     const { referral_count } = req.body;
@@ -730,10 +791,12 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
             const user = await User.findOne({ telegram_id });
 
             if (user) {
+                console.log(newEnergy)
                 // Оновлюємо натапаний баланс
                 user.total_balance = newBalance;
                 // Оновлюємо енергію
                 user.energy = newEnergy;
+                console.log(user.energy)
                 user.lastEnergyUpdate = new Date();
                 await user.save();
                 logger.info('Balance updated', { telegram_id, newBalance, newEnergy });
@@ -787,7 +850,6 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                     break;
                 case 'AUTO TAP':
                     user.total_balance -= price;
-                await user.save();
                     break;
                 default:
                     return ws.send(JSON.stringify({ type: 'error', message: 'Unknown boost type' }));
