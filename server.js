@@ -208,13 +208,13 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
     };
 
     const leagueCriteria = {
-        WOOD: 0,
-        BRONZE: 1000000,
-        SILVER: 5000000,
-        GOLD: 15000000,
-        DIAMOND: 25000000,
-        MASTER: 45000000,
-        GRANDMASTER: 70000000
+        WOOD: 1,
+        BRONZE: 5000,
+        SILVER: 50000,
+        GOLD: 1000000,
+        DIAMOND: 15000000,
+        MASTER: 35000000,
+        GRANDMASTER: 50000000
     };
 
     const checkAndUpdateLeague = async (user) => {
