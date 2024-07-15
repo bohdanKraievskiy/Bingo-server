@@ -351,8 +351,13 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
                 user.energy = newEnergy;
                 console.log(user.energy)
                 await user.save();
+                res.status(200).json({ message: 'Energy updated successfully', energy: user.energy });
+
+            } else {
+                res.status(404).json({ message: 'Користувача не знайдено' });
             }
-            }   catch (error)   {
+        }
+        catch (error)   {
             res.status(500).json({ message: 'Помилка при оновленні енергії користувача', error });
         };
     });
