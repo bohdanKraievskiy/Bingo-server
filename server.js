@@ -46,7 +46,8 @@
             active: { type: Boolean, default: false },
             timeLeft: { type: Number, default: 0 }, // Час, що залишився в мілісекундах
             accumulatedPoints: { type: Number, default: 0 }, // Накопичені очки
-            lastUpdate: { type: Date, default: Date.now } // Час останнього оновлення
+            lastUpdate: { type: Date, default: Date.now }, // Час останнього оновлення
+            cycleEnded: { type: Boolean, default: false }
         },
         leagueProgress: {
             WOOD: { type: Number, default: 0 },
@@ -114,7 +115,6 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
     const calculateEnergy = (user) => {
         const maxEnergy = 1000 + user.energy_limit_level * 500;
-        console.log(user.energy)
         if (user.energy < maxEnergy) {
             const currentTime = new Date();
             const lastUpdate = new Date(user.lastEnergyUpdate);
@@ -126,6 +126,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
             const energyRecovered = Math.floor((timeDifference / recoveryTimePerUnit) * 1000); // Кількість відновлених одиниць енергії
 
             user.energy = Math.min(user.energy + energyRecovered, maxEnergy); // Відновлена енергія
+            console.log(user.lastEnergyUpdate)
             console.log(user.energy)
             user.lastEnergyUpdate = currentTime;
             // Логування після оновлення енергії
@@ -165,16 +166,12 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
     const activateAutoTap = (user) => {
         const now = new Date();
 
-        user.autoTap.active = true;
-        user.autoTap.timeLeft = 3 * 60 * 60 * 1000; // 3 години в мілісекундах
+        user.autoTap.timeLeft =3 * 60 * 60 * 1000; // 3 часа в миллисекундах
         user.autoTap.lastUpdate = now;
-
-        // Обнуляємо накопичені очки, коли активується новий AUTO TAP
+        user.autoTap.cycleEnded = false;
         user.autoTap.accumulatedPoints = 0;
-
         return user;
     };
-
     const updateAutoTapStatus = (user) => {
         const now = new Date();
 
@@ -185,23 +182,25 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
                 timeLeft: 0,
                 accumulatedPoints: 0,
                 lastUpdate: now,
+                cycleEnded : false
             };
         }
 
-        if (!user.autoTap.active || user.autoTap.timeLeft <= 0) {
+        if (!user.autoTap.active) {
             return user;
         }
 
         const elapsed = now - user.autoTap.lastUpdate;
-        const pointsPerMinute = 60; // Points per minute
+        const pointsPerMinute = user.multi_tap_level * 30; // Points per minute
         const pointsToAdd = Math.floor(elapsed / 60000) * pointsPerMinute; // New points to add
-        user.autoTap.accumulatedPoints += pointsToAdd;
+        if (user.autoTap.timeLeft > 0 ) {
+            user.autoTap.accumulatedPoints += pointsToAdd;
+            user.autoTap.timeLeft = Math.max(0, user.autoTap.timeLeft - elapsed);
+            user.autoTap.lastUpdate = now;
 
-        user.autoTap.timeLeft = Math.max(0, user.autoTap.timeLeft - elapsed);
-        user.autoTap.lastUpdate = now;
-
-        if (user.autoTap.timeLeft <= 0) {
-            user.autoTap.active = false;
+            if (user.autoTap.timeLeft <= 0) {
+                user.autoTap.cycleEnded = false;
+            }
         }
 
         return user;
@@ -348,11 +347,11 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
 
             if (user) {
                 // Оновлюємо енергію
+                user.lastEnergyUpdate = new Date();
                 user.energy = newEnergy;
                 console.log(user.energy)
                 await user.save();
                 res.status(200).json({ message: 'Energy updated successfully', energy: user.energy });
-
             } else {
                 res.status(404).json({ message: 'Користувача не знайдено' });
             }
@@ -422,15 +421,21 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
 
     app.put('/api/:token/reset-accumulated-points/:telegram_id', async (req, res) => {
         const { telegram_id } = req.params;
-
         try {
-            await User.updateOne({ telegram_id }, {
-                'autoTap.accumulatedPoints': 0 // обнулення накопичених поінтів
-            });
+            const user = await User.findOne({ telegram_id });
 
-            res.status(200).send({ message: 'Accumulated points reset successfully' });
-        } catch (error) {
-            res.status(500).send({ error: 'Error resetting accumulated points' });
+            if (user) {
+            user.autoTap.accumulatedPoints = 0;
+            user.autoTap.cycleEnded = true;
+            await user.save();
+                res.status(200).json({ message: 'accumulatedPoints reset successfully (api)' });
+            } else {
+                res.status(404).json({ message: 'User not found (api)' });
+
+            }
+        }
+        catch (error) {
+        res.status(500).send({ error: `Error resetting accumulated points - ${error}` });
         }
     });
 
@@ -466,16 +471,37 @@ app.post(`/api/${TOKEN}/purchase-boost`, async (req, res) => {
                     user.recharging_speed += 1;
                     break;
                 case 'AUTO TAP':
+                    user.autoTap.active = true;
                     break;
                 default:
                     return res.status(400).json({ message: 'Unknown boost type' });
             }
-
             await user.save();
             res.json({ success: true, newBalance: user.total_balance });
         } catch (error) {
             console.error('Purchase boost error:', error);
             res.status(500).json({ message: "Server error" });
+        }
+    });
+    app.put(`/api/${TOKEN}/save-auto-tap-data/:telegram_id `, async (req, res) => {
+        const { telegram_id } = req.params;
+        const autoTapData = req.body;
+
+        try {
+            const user = await User.findOne({ telegram_id });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            // Update AUTO TAP data
+            user.auto_tap = autoTapData;
+
+            await user.save();
+            res.json({ success: true, message: 'AUTO TAP data saved successfully.' });
+        } catch (error) {
+            console.error('Error saving AUTO TAP data:', error);
+            res.status(500).json({ message: 'Server error' });
         }
     });
 
@@ -928,8 +954,7 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
         try {
             const user = await User.findOne({ telegram_id });
 
-            if (user && user.total_balance >= 100) {
-                user.total_balance -= 100;
+            if (user) {
                 activateAutoTap(user); // Функція активації AUTO TAP, яку ви вже маєте
                 await user.save();
                 logger.info('AUTO TAP Boost activated', { telegram_id});
@@ -944,7 +969,7 @@ app.get(`/api/${TOKEN}/user-exist/:telegram_id`, async (req, res) => {
                 ws.send(JSON.stringify({ type: 'error', message: 'Insufficient balance or user not found' }));
             }
         } catch (error) {
-            logger.error('Error activating auto tap boost', { telegram_id, error });
+            console.log(`Error activating auto tap boost,  ${telegram_id}, ${error} `);
             ws.send(JSON.stringify({ type: 'error', message: 'Error activating auto tap' }));
         }
     }
