@@ -374,6 +374,7 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
             if (user) {
                 // Оновлюємо загальний баланс
                 user.total_balance = total_balance;
+                console.log(user.total_balance)
                 // Зберігаємо зміни
                 await user.save();
 
@@ -406,6 +407,7 @@ app.get(`/api/${TOKEN}/user-balance/:telegram_id`, async (req, res) => {
 
                 // Оновлюємо taping balance
                 user.taping_balance = taping_balance;
+                console.log(user.taping_balance);
                 await user.save();
 
                 res.status(200).json({ message: 'taping_balance updated successfully (api)' });
