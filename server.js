@@ -140,18 +140,18 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
     const updateDailyBoosts = (user) => {
         const now = new Date();
-        const eightHours = 8 * 60 * 60 * 1000; // 8 часов в миллисекундах
+        const oneDay = 24 * 60 * 60 * 1000;  // 8 часов в миллисекундах
         let newChargesAdded = false;
 
         const boosts = ['tapingGuru', 'fullTank'];
         boosts.forEach(boost => {
             const lastUpdate = new Date(user.dailyBoosts[boost].lastUpdate);
             const timeDifference = (now.getTime() - lastUpdate.getTime());
-            if (timeDifference >= eightHours) {
+            if (timeDifference >= oneDay) {
                 const previousCharges = user.dailyBoosts[boost].charges;
-                const chargesToAdd = 3;
+                const chargesToAdd = 1;
                 user.dailyBoosts[boost].charges = Math.min(user.dailyBoosts[boost].charges + chargesToAdd, 3);
-                user.dailyBoosts[boost].lastUpdate = new Date(lastUpdate.getTime() + chargesToAdd * eightHours);
+                user.dailyBoosts[boost].lastUpdate = new Date(lastUpdate.getTime() + chargesToAdd * oneDay);
 
                 if (previousCharges < 3 && user.dailyBoosts[boost].charges === 3) {
                     newChargesAdded = true;
