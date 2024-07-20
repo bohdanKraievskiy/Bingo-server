@@ -140,18 +140,31 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
     const updateDailyBoosts = (user) => {
         const now = new Date();
-        const oneDay = 24 * 60 * 60 * 1000;  // 8 часов в миллисекундах
+        const kyivOffset = 3 * 60 * 60 * 1000; // Київський час = UTC + 3 години (враховуючи літній час)
+        const oneDay = 24 * 60 * 60 * 1000;
+        const resetHour = 1; // Час для оновлення зарядок
+
         let newChargesAdded = false;
 
         const boosts = ['tapingGuru', 'fullTank'];
         boosts.forEach(boost => {
             const lastUpdate = new Date(user.dailyBoosts[boost].lastUpdate);
-            const timeDifference = (now.getTime() - lastUpdate.getTime());
-            if (timeDifference >= oneDay) {
+            const kyivLastUpdate = new Date(lastUpdate.getTime() + kyivOffset);
+
+            // Розрахунок часу для оновлення
+            const lastReset = new Date(kyivLastUpdate);
+            lastReset.setHours(resetHour, 0, 0, 0);
+
+            if (kyivLastUpdate.getHours() < resetHour) {
+                lastReset.setDate(lastReset.getDate() - 1);
+            }
+
+            // Перевірка, чи потрібно оновлювати зарядки
+            if (now.getTime() >= lastReset.getTime() + oneDay) {
                 const previousCharges = user.dailyBoosts[boost].charges;
                 const chargesToAdd = 1;
                 user.dailyBoosts[boost].charges = Math.min(user.dailyBoosts[boost].charges + chargesToAdd, 3);
-                user.dailyBoosts[boost].lastUpdate = new Date(lastUpdate.getTime() + chargesToAdd * oneDay);
+                user.dailyBoosts[boost].lastUpdate = new Date(lastReset.getTime() + chargesToAdd * oneDay - kyivOffset);
 
                 if (previousCharges < 3 && user.dailyBoosts[boost].charges === 3) {
                     newChargesAdded = true;
@@ -161,6 +174,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
 
         return newChargesAdded;
     };
+
 
 
     const activateAutoTap = (user) => {
