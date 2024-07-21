@@ -162,7 +162,7 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
             // Перевірка, чи потрібно оновлювати зарядки
             if (now.getTime() >= lastReset.getTime() + oneDay) {
                 const previousCharges = user.dailyBoosts[boost].charges;
-                const chargesToAdd = 1;
+                const chargesToAdd = 3;
                 user.dailyBoosts[boost].charges = Math.min(user.dailyBoosts[boost].charges + chargesToAdd, 3);
                 user.dailyBoosts[boost].lastUpdate = new Date(lastReset.getTime() + chargesToAdd * oneDay - kyivOffset);
 
