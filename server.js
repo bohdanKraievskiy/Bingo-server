@@ -59,7 +59,12 @@
             GRANDMASTER: { type: Number, default: 0 }
         },
         lastLogin: Date,
-        isOnline: Boolean
+        isOnline: Boolean,
+        subscribes: {
+            telegram_channel:Boolean,
+            telegram_group: Boolean,
+            telegram_metaBingo: Boolean
+        }
     });
 
     const taskSchema = new mongoose.Schema({
@@ -272,7 +277,27 @@ app.get(`/api/${TOKEN}/stats`, async (req, res) => {
         return progressArray;
     };
 
+    app.get(`/api/${TOKEN}/check-subscribes`, async (req, res) => {
+        const {telegram_id} = req.query;
 
+        if (!telegram_id) {
+            return res.status(400).json({ message: 'Telegram ID is required' });
+        }
+        try {
+            const user = await User.findOne({telegram_id});
+
+            if (user) {
+                res.status(200).json({
+                    userExists: true,
+                    userSubscribes: user.subscribes
+                });
+            } else {
+                res.status(200).json({userExists: false});
+            }
+        } catch (error) {
+            res.status(500).json({ message: 'Error checking subscribes', error });
+        }
+    });
 
     app.get(`/api/${TOKEN}/check-user`, async (req, res) => {
         const { telegram_id } = req.query;
