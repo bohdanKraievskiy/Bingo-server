@@ -61,9 +61,9 @@
         lastLogin: Date,
         isOnline: Boolean,
         subscribes: {
-            telegram_channel:Boolean,
-            telegram_group: Boolean,
-            telegram_metaBingo: Boolean
+            telegram_channel:{ type: Boolean, default: false },
+            telegram_group: { type: Boolean, default: false },
+            telegram_metaBingo: { type: Boolean, default: false }
         }
     });
 
